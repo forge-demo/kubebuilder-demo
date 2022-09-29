@@ -1,0 +1,6 @@
+apiVersion: webapp.forge.dev/v1
+kind: Guestbook
+metadata:
+  name: guest-no-reservation-number
+spec:
+  name: guest-foo
