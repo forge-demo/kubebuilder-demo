@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,6 +32,14 @@ import (
 type GuestbookReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+}
+
+func formatGuestbook(e webappv1.Guestbook) string {
+	return fmt.Sprintf(
+		"%s/%s -> %s (%s)/%s",
+		e.Namespace, e.Name,
+		e.Spec.Name, e.Spec.ReservationNumber, e.Status.RoomNumber,
+	)
 }
 
 //+kubebuilder:rbac:groups=webapp.forge.dev,resources=guestbooks,verbs=get;list;watch;create;update;patch;delete
@@ -47,9 +56,32 @@ type GuestbookReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
 func (r *GuestbookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	var guestbook webappv1.Guestbook
+	if err := r.Get(ctx, req.NamespacedName, &guestbook); err != nil {
+		logger.Error(err, "failed to get guest book")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if guestbook.Status.RoomNumber != "" {
+		logger.V(8).Info("room number already assigned", "guestbook", formatGuestbook(guestbook))
+		return ctrl.Result{}, nil
+	}
+
+	if guestbook.Spec.ReservationNumber == "" {
+		logger.V(8).Info("reservation number not set", "guestbook", formatGuestbook(guestbook))
+		return ctrl.Result{}, fmt.Errorf("invalid reservation number")
+	}
+
+	logger.Info("assigning room number", "guestbook", formatGuestbook(guestbook))
+	guestbook.Status.RoomNumber = guestbook.Spec.ReservationNumber
+	if err := r.Status().Update(ctx, &guestbook); err != nil {
+		logger.Error(err, "failed to update guest book status")
+		return ctrl.Result{}, err
+	}
+
+	logger.Info("assigned room number", "guestbook", formatGuestbook(guestbook))
 
 	return ctrl.Result{}, nil
 }

@@ -1,0 +1,7 @@
+apiVersion: webapp.forge.dev/v1
+kind: Guestbook
+metadata:
+  name: guest-1
+spec:
+  name: guest-1
+  reservationNumber: "room-12345"

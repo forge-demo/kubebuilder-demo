@@ -35,13 +35,19 @@ spec:
           spec:
             description: GuestbookSpec defines the desired state of Guestbook
             properties:
-              foo:
-                description: Foo is an example field of Guestbook. Edit guestbook_types.go
-                  to remove/update
+              name:
+                description: Name is the guest name.
+                type: string
+              reservationNumber:
+                description: ReservationNumber is the reservation number of the guest.
                 type: string
             type: object
           status:
             description: GuestbookStatus defines the observed state of Guestbook
+            properties:
+              roomNumber:
+                description: RoomNumber is the room number of the guest.
+                type: string
             type: object
         type: object
     served: true
