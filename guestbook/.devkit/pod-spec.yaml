@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: guestbook
+spec:
+  serviceAccount: guestbook-controller-manager
+  serviceAccountName: guestbook-controller-manager
+  containers:
+    - name: manager
+      args:
+        - "--log-level"
+        - "12"
+      command:
+        - devkit-server
+      resources:
+        limits:
+          cpu: "3"
+          memory: 4Gi
+        requests:
+          cpu: "2"
+          memory: 2Gi
+      securityContext:
+        $patch: replace
+        allowPrivilegeEscalation: true
