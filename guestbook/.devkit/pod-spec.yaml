@@ -22,3 +22,12 @@ spec:
       securityContext:
         $patch: replace
         allowPrivilegeEscalation: true
+      volumeMounts:
+        - mountPath: /certs
+          name: cert
+          readOnly: true
+  volumes:
+    - name: cert
+      secret:
+        defaultMode: 420
+        secretName: guestbook-webhook-server-cert
