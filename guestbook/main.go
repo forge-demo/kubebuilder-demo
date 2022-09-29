@@ -18,13 +18,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	"github.com/open-policy-agent/cert-controller/pkg/rotator"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,6 +42,7 @@ import (
 // NOTE: we declare following RBAC requirements for rotating the webhook cert on demand
 //+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=mutatingwebhookconfigurations,verbs=create;delete;get;list;patch;update;watch
 //+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=create;delete;get;list;patch;update;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,namespace=system,verbs=create;delete;get;list;patch;update;watch
 
 var (
 	scheme   = runtime.NewScheme()
@@ -56,11 +60,13 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var certDir string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&certDir, "cert-dir", "/certs", "The path to the webhook certificate.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -87,9 +93,38 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+
+		CertDir: certDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	certSetupFinished := make(chan struct{})
+	setupLog.Info("setting up webhook certificates")
+	if err := rotator.AddRotator(mgr, &rotator.CertRotator{
+		SecretKey: types.NamespacedName{
+			Namespace: os.Getenv("POD_NAMESPACE"),
+			Name:      "guestbook-webhook-server-cert",
+		},
+		CertDir:        certDir,
+		CAName:         "guestbook-webhook-ca",
+		CAOrganization: "guestbook-webhook-org",
+		DNSName:        fmt.Sprintf("guestbook-webhook-service.%s.svc", os.Getenv("POD_NAMESPACE")),
+		IsReady:        certSetupFinished,
+		Webhooks: []rotator.WebhookInfo{
+			{
+				Name: "guestbook-validating-webhook-configuration",
+				Type: rotator.Validating,
+			},
+			{
+				Name: "guestbook-mutating-webhook-configuration",
+				Type: rotator.Mutating,
+			},
+		},
+	}); err != nil {
+		setupLog.Error(err, "unable to setup certificate rotator")
 		os.Exit(1)
 	}
 
@@ -100,10 +135,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Guestbook")
 		os.Exit(1)
 	}
-	if err = (&webappv1.Guestbook{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Guestbook")
-		os.Exit(1)
-	}
+	go setupWebhook(mgr, certSetupFinished)
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -118,6 +150,15 @@ func main() {
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+}
+
+func setupWebhook(mgr ctrl.Manager, setupFinished chan struct{}) {
+	<-setupFinished
+
+	if err := (&webappv1.Guestbook{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Guestbook")
 		os.Exit(1)
 	}
 }

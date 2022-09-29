@@ -18,3 +18,7 @@ profiles:
             useContainer: manager
         - patchesStrategicMerge:
             - ./pod-spec.yaml
+    serviceMeshes:
+      - name: webhook-server
+        inCluster:
+          service: guestbook-webhook-service

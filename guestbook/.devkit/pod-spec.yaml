@@ -19,6 +19,12 @@ spec:
         requests:
           cpu: "2"
           memory: 2Gi
+      env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
       securityContext:
         $patch: replace
         allowPrivilegeEscalation: true
