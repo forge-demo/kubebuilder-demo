@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  # the `<pod-name>` magic value will be filled with the dev pod's name
+  name: <pod-name>
+spec:
+  containers:
+    - # the container with name `<main-entry-container>` marks the main container
+      # to run the devkit component.
+      $patch: merge
+      name: <main-entry-container>
+      # the `<main-entry-container-image>` will be replaced with the actual workspace image.
+      image: <main-entry-container-image>
+      imagePullPolicy: IfNotPresent
+      resources:
+        limits:
+          cpu: "2"
+          memory: 2Gi
+        requests:
+          cpu: "1"
+          memory: 1Gi
+    - # drop all other containers in the list
+      $patch: replace

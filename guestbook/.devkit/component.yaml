@@ -8,17 +8,13 @@ profiles:
     kubernetes:
       pod:
         name: guestbook
-        mainEntryContainerImage: forgedev.azurecr.io/devkit-containers/go:v2022092002
-        mainEntryContainer: manager
+        mainEntryContainerImage: forgedev.azurecr.io/devkit-containers/go:v2022100301
       patches:
-        - clonePod:
+        - # below is to create the dev pod from existing application pod. Please edit the label selector to match the application pod
+          clonePod:
             selector:
               matchLabels:
                 control-plane: controller-manager
-            useContainer: manager
-        - patchesStrategicMerge:
-            - ./pod-spec.yaml
-    serviceMeshes:
-      - name: webhook-server
-        inCluster:
-          service: guestbook-webhook-service
+        - # below is to patch the dev pod using strategic merge. Please edit the patch file to match your needs
+          patchesStrategicMerge:
+            - pod-patch.yaml
